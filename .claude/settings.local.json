@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(cmd /c \"for %I in \\(\"\"C:\\\\Program Files\\\\nodejs\"\"\\) do echo %~sI\")",
+      "Bash(cmd /c \"dir /x \"\"C:\\\\Program Files\\\\nodejs\"\"\")",
+      "Bash(cmd /c \"echo %PROGRAMFILES%\")",
+      "Bash(cmd /c \"for %F in \\(\"\"C:\\\\Program Files\\\\nodejs\\\\npm.cmd\"\"\\) do @echo %~sF\")",
+      "Bash(curl:*)",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
+      "Bash(\"C:/Program Files/nodejs/npm.cmd\" install autoprefixer --save-dev)",
+      "Bash(pkill:*)",
+      "Bash(taskkill //F //PID 33644)",
+      "Bash(kill:*)",
+      "Bash(cmd //c \"for %F in \\(\"\"C:\\\\Program Files\\\\nodejs\\\\node.exe\"\"\\) do echo %~sF\")",
+      "Bash(netstat:*)",
+      "Bash(taskkill //F //PID 33808)",
+      "Bash(ls:*)",
+      "Bash(\"/c/Program Files/nodejs/node.exe\" scripts/seed.mjs)",
+      "Bash(\"/c/Program Files/nodejs/node.exe\" -e \":*)",
+      "Bash(node -e:*)",
+      "Bash(\"/c/Program Files/nodejs/node.exe\" -e:*)",
+      "Bash(npx next build:*)",
+      "Bash(npm run build:*)",
+      "Bash(where.exe npm)",
+      "Bash(cmd.exe /c \"where npm\")",
+      "Bash(npx tsc:*)",
+      "Bash(export PATH=\"/c/Program Files/nodejs:/mingw64/usr/bin:/usr/bin:$PATH\")",
+      "Bash(node scripts/seed.mjs:*)"
+    ]
+  }
+}
