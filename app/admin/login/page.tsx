@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -33,12 +35,28 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-ucd-blue flex items-center justify-center px-4">
+    <div className="min-h-screen bg-pantry-dark flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white">UC Davis Pantry</h1>
-          <p className="text-blue-300 mt-1">Admin Portal</p>
+          <div className="flex justify-center mb-4">
+            <Image
+              src="/logos/pantry-icon-white.webp"
+              alt="The Pantry"
+              width={52}
+              height={52}
+              className="rounded-full"
+            />
+          </div>
+          <h1 className="text-2xl font-bold text-white">The Pantry</h1>
+          <p className="text-white/50 mt-1 text-sm">Staff Portal</p>
         </div>
+
+        <Link
+          href="/"
+          className="flex items-center gap-1 text-sm text-white/50 hover:text-white transition-colors mb-6"
+        >
+          ← Back to home
+        </Link>
 
         <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-6">

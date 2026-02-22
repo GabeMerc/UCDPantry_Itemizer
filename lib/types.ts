@@ -25,6 +25,7 @@ export interface InventoryItem {
 export interface Shipment {
   id: string;
   item_name: string;
+  category: string;
   expected_quantity: number;
   unit: string;
   expected_date: string; // ISO date string
@@ -146,6 +147,7 @@ export interface StudentPreferences {
   mealsPerDay: number;
   dislikedIngredients: string[];
   maxBuyItems: number | null; // null = no limit; 0 = pantry only; 3 = a few; 8 = some
+  swipesPerMeal: number; // how many recipe cards to show per meal type session (default 10)
   selectedMealTypes?: MealType[]; // for mealsPerDay < 3
 }
 

@@ -6,7 +6,9 @@ export const revalidate = 0;
 
 export default async function ShipmentsPage() {
   const supabase = await createClient();
-  const today = new Date().toISOString().split("T")[0];
+  // Use local date (not UTC) so shipments don't flip to "past" due to timezone offset
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   const { data, error } = await supabase
     .from("shipments")

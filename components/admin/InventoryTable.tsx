@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { InventoryItem, DietaryTag } from "@/lib/types";
+import { CATEGORIES, UNITS } from "@/lib/constants";
 
 const ALL_DIETARY_TAGS: DietaryTag[] = [
   "vegan",
@@ -48,7 +49,7 @@ export default function InventoryTable({
   const [showAddForm, setShowAddForm] = useState(false);
   const [addForm, setAddForm] = useState<Partial<InventoryItem>>({
     name: "",
-    category: "",
+    category: "Pantry",
     quantity: 0,
     unit: "item",
     dietary_tags: [],
@@ -80,9 +81,14 @@ export default function InventoryTable({
         cmp = a.category.localeCompare(b.category);
       else if (sortKey === "quantity") cmp = a.quantity - b.quantity;
       else if (sortKey === "date_available") {
-        const aDate = a.date_available ?? "0000-00-00";
-        const bDate = b.date_available ?? "0000-00-00";
-        cmp = aDate.localeCompare(bDate);
+        // Sort by status group: 0=out of stock, 1=low stock, 2=in stock, 3=coming soon
+        const statusPriority = (item: InventoryItem) => {
+          if (item.quantity === 0) return 0;
+          if (item.quantity <= 5) return 1;
+          if (item.date_available && item.date_available > today) return 3;
+          return 2;
+        };
+        cmp = statusPriority(a) - statusPriority(b);
       }
       return sortAsc ? cmp : -cmp;
     });
@@ -161,7 +167,7 @@ export default function InventoryTable({
       .from("inventory")
       .insert({
         name: addForm.name!.trim(),
-        category: addForm.category || "General",
+        category: addForm.category || "Pantry",
         quantity: addForm.quantity ?? 0,
         unit: addForm.unit || "item",
         dietary_tags: addForm.dietary_tags ?? [],
@@ -181,7 +187,7 @@ export default function InventoryTable({
     setShowAddForm(false);
     setAddForm({
       name: "",
-      category: "",
+      category: "Pantry",
       quantity: 0,
       unit: "item",
       dietary_tags: [],
@@ -273,14 +279,17 @@ export default function InventoryTable({
             </div>
             <div>
               <label className="label">Category</label>
-              <input
+              <select
                 className="input"
-                value={addForm.category ?? ""}
+                value={addForm.category ?? "Pantry"}
                 onChange={(e) =>
                   setAddForm((f) => ({ ...f, category: e.target.value }))
                 }
-                placeholder="General"
-              />
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="label">Quantity</label>
@@ -299,13 +308,17 @@ export default function InventoryTable({
             </div>
             <div>
               <label className="label">Unit</label>
-              <input
+              <select
                 className="input"
                 value={addForm.unit ?? "item"}
                 onChange={(e) =>
                   setAddForm((f) => ({ ...f, unit: e.target.value }))
                 }
-              />
+              >
+                {UNITS.map((u) => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
             </div>
           </div>
           <div>
@@ -440,22 +453,26 @@ export default function InventoryTable({
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-2.5 text-gray-600">
-                      {item.date_available ? (
-                        <span
-                          className={
-                            item.date_available > today
-                              ? "text-blue-600"
-                              : "text-green-600"
-                          }
-                        >
-                          {new Date(item.date_available).toLocaleDateString(
+                    <td className="px-4 py-2.5">
+                      {item.quantity === 0 ? (
+                        <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                          Out of stock
+                        </span>
+                      ) : item.quantity <= 5 ? (
+                        <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+                          Low stock
+                        </span>
+                      ) : item.date_available && item.date_available > today ? (
+                        <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                          {new Date(item.date_available + "T00:00:00").toLocaleDateString(
                             "en-US",
                             { month: "short", day: "numeric" }
                           )}
                         </span>
                       ) : (
-                        <span className="text-green-600">In stock</span>
+                        <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                          In stock
+                        </span>
                       )}
                     </td>
                     <td className="px-4 py-2.5">
@@ -550,11 +567,15 @@ function EditRow({
         />
       </td>
       <td className="px-4 py-2">
-        <input
+        <select
           className="input text-xs"
-          value={form.category ?? ""}
+          value={form.category ?? "Pantry"}
           onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-        />
+        >
+          {CATEGORIES.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
       </td>
       <td className="px-4 py-2">
         <input
@@ -571,11 +592,15 @@ function EditRow({
         />
       </td>
       <td className="px-4 py-2">
-        <input
-          className="input text-xs w-20"
-          value={form.unit ?? ""}
+        <select
+          className="input text-xs w-28"
+          value={form.unit ?? "item"}
           onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
-        />
+        >
+          {UNITS.map((u) => (
+            <option key={u} value={u}>{u}</option>
+          ))}
+        </select>
       </td>
       <td className="px-4 py-2">
         <div className="flex flex-wrap gap-1">

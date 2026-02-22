@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import type { DietaryTag, StudentPreferences } from "@/lib/types";
+import type { DietaryTag, MealType, StudentPreferences } from "@/lib/types";
 
 const ALL_TAGS: DietaryTag[] = [
   "vegan",
@@ -48,7 +48,15 @@ const DEFAULT_PREFS: StudentPreferences = {
   mealsPerDay: 3,
   dislikedIngredients: [],
   maxBuyItems: null,
+  swipesPerMeal: 10,
 };
+
+const SWIPE_OPTIONS: { value: number; label: string; desc: string }[] = [
+  { value: 5,  label: "5 cards",  desc: "Quick" },
+  { value: 10, label: "10 cards", desc: "Balanced" },
+  { value: 15, label: "15 cards", desc: "Thorough" },
+  { value: 20, label: "20 cards", desc: "Full" },
+];
 
 export default function PreferencesClient() {
   const [prefs, setPrefs] = useState<StudentPreferences>(DEFAULT_PREFS);
@@ -301,9 +309,39 @@ export default function PreferencesClient() {
         </div>
       </div>
 
-      {/* Meals per day + disliked */}
+      {/* Meals per day + swipes + disliked */}
       <div className="card p-6 space-y-4">
         <h2 className="font-semibold text-gray-800">Extras</h2>
+
+        {/* Swipes per meal */}
+        <div>
+          <label className="label mb-2">Recipes per swipe session</label>
+          <p className="text-xs text-gray-400 mb-2">
+            How many recipe cards to show for each meal type when swiping.
+          </p>
+          <div className="grid grid-cols-4 gap-2">
+            {SWIPE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  setSaved(false);
+                  setPrefs((p) => ({ ...p, swipesPerMeal: opt.value }));
+                }}
+                className={`py-2.5 rounded-lg text-sm font-bold border-2 transition-colors flex flex-col items-center gap-0.5 ${
+                  (prefs.swipesPerMeal ?? 10) === opt.value
+                    ? "bg-ucd-blue text-white border-ucd-blue"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-ucd-blue"
+                }`}
+              >
+                <span>{opt.label}</span>
+                <span className={`text-xs font-normal ${(prefs.swipesPerMeal ?? 10) === opt.value ? "text-blue-200" : "text-gray-400"}`}>
+                  {opt.desc}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div>
           <label className="label mb-2">Meals per day</label>
           <div className="flex gap-3">
@@ -312,7 +350,14 @@ export default function PreferencesClient() {
                 key={n}
                 onClick={() => {
                   setSaved(false);
-                  setPrefs((p) => ({ ...p, mealsPerDay: n }));
+                  setPrefs((p) => {
+                    const defaults: Record<number, MealType[]> = {
+                      1: ["dinner"],
+                      2: ["lunch", "dinner"],
+                      3: ["breakfast", "lunch", "dinner"],
+                    };
+                    return { ...p, mealsPerDay: n, selectedMealTypes: defaults[n] };
+                  });
                 }}
                 className={`flex-1 py-2 rounded-lg text-sm font-bold border-2 transition-colors ${
                   prefs.mealsPerDay === n
@@ -324,6 +369,52 @@ export default function PreferencesClient() {
               </button>
             ))}
           </div>
+
+          {/* Meal type selector — only shown when < 3 meals */}
+          {prefs.mealsPerDay < 3 && (
+            <div className="mt-3">
+              <label className="text-xs text-gray-500 mb-2 block">
+                Which meal{prefs.mealsPerDay > 1 ? "s" : ""}?
+              </label>
+              <div className="flex gap-2">
+                {(["breakfast", "lunch", "dinner"] as MealType[]).map((mt) => {
+                  const selected = (prefs.selectedMealTypes ?? []).includes(mt);
+                  return (
+                    <button
+                      key={mt}
+                      onClick={() => {
+                        setSaved(false);
+                        setPrefs((p) => {
+                          const current = p.selectedMealTypes ?? [];
+                          if (selected) {
+                            // Don't allow deselecting if already at the minimum
+                            if (current.length <= p.mealsPerDay) return p;
+                            return { ...p, selectedMealTypes: current.filter((t) => t !== mt) };
+                          } else {
+                            if (p.mealsPerDay === 1) {
+                              // Radio: replace selection
+                              return { ...p, selectedMealTypes: [mt] };
+                            } else {
+                              // Add, but cap at mealsPerDay (drop oldest)
+                              const updated = [...current.filter((t) => t !== mt), mt];
+                              return { ...p, selectedMealTypes: updated.slice(-p.mealsPerDay) };
+                            }
+                          }
+                        });
+                      }}
+                      className={`flex-1 py-2 rounded-lg text-sm font-semibold border-2 transition-colors capitalize ${
+                        selected
+                          ? "bg-ucd-blue text-white border-ucd-blue"
+                          : "bg-white text-gray-600 border-gray-200 hover:border-ucd-blue"
+                      }`}
+                    >
+                      {mt}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
         <div>
           <label className="label">Disliked ingredients</label>

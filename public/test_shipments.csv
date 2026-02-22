@@ -1,0 +1,20 @@
+Item Name,Category,Quantity,Unit,Expected Date,Notes
+Whole Milk,Dairy & Alternatives,24,cartons,2026-02-21,Arriving today test
+Greek Yogurt,Dairy & Alternatives,36,cups,2026-02-21,
+Brown Rice,Grains,100,lbs,2026-02-21,
+Canned Black Beans,Proteins,50,cans,2/25/2026,Food Bank Donation
+Canned Chickpeas,Proteins,40,cans,2/25/2026,
+Chicken Breast,Proteins,75,lbs,2/25/2026,Frozen - store immediately
+Bananas,Produce,80,lbs,3/2/2026,
+Baby Spinach,Produce,30,bags,3/2/2026,
+Carrots,Produce,60,lbs,3/2/2026,Organic
+Tomatoes,Produce,45,lbs,3/2/2026,
+Granola Bars,Snacks,120,items,3/10/2026,Assorted flavors
+Mixed Nuts,Snacks,25,lbs,3/10/2026,
+Peanut Butter,Pantry,60,jars,3/10/2026,
+Olive Oil,Pantry,20,bottles,3/10/2026,Extra virgin
+Pasta,Grains,80,lbs,3/10/2026,Assorted shapes
+Oatmeal,Grains,50,lbs,3/15/2026,
+Cheddar Cheese,Dairy & Alternatives,30,lbs,3/15/2026,
+Apples,Produce,90,lbs,3/15/2026,Fuji variety
+Expired Item,Pantry,10,items,1/15/2026,This row should be skipped

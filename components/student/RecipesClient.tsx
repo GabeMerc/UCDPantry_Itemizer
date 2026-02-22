@@ -64,6 +64,21 @@ export default function RecipesClient({
     } catch {
       // ignore
     }
+
+    // Restore previously fetched recipes so navigating back doesn't reset the page
+    try {
+      const cached = sessionStorage.getItem("pantry_recipe_results");
+      if (cached) {
+        const { recipes: cachedRecipes, timestamp } = JSON.parse(cached);
+        // Keep for up to 15 minutes
+        if (Date.now() - timestamp < 15 * 60 * 1000 && cachedRecipes?.length) {
+          setRecipes(cachedRecipes);
+          setHasFetched(true);
+        }
+      }
+    } catch {
+      // ignore
+    }
   }, []);
 
   const fetchRecipes = useCallback(async () => {
@@ -73,7 +88,6 @@ export default function RecipesClient({
 
     const params = new URLSearchParams({
       ingredients: ingredientNames.join(","),
-      refresh: "1", // always fetch fresh from Spoonacular with current inventory
     });
 
     // Map dietary preferences to Spoonacular diet parameter
@@ -93,11 +107,26 @@ export default function RecipesClient({
       const res = await fetch(`/api/recipes?${params.toString()}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to fetch recipes");
-      setRecipes(json.recipes ?? []);
+
+      // Filter out recipes exceeding per-meal macro limits (only if nutrition data exists)
+      const allRecipes: EnrichedRecipe[] = json.recipes ?? [];
+      const filtered = prefs ? allRecipes.filter((r) => !exceedsPerMealLimits(r.nutrition, prefs)) : allRecipes;
+
+      setRecipes(filtered);
       setHasFetched(true);
 
+      // Cache results so navigating back restores them without re-fetching
+      try {
+        sessionStorage.setItem(
+          "pantry_recipe_results",
+          JSON.stringify({ recipes: filtered, timestamp: Date.now() })
+        );
+      } catch {
+        // ignore storage errors (e.g. private browsing quota)
+      }
+
       // Track views for all returned recipes
-      for (const r of json.recipes ?? []) {
+      for (const r of filtered) {
         void trackInteraction(r.id, r.title, r.image, "view");
       }
     } catch (e) {
@@ -179,7 +208,7 @@ export default function RecipesClient({
           {!hasFetched ? (
             <div className="card p-8 text-center space-y-4">
               <p className="text-gray-600">
-                Get recipe ideas based on the{" "}
+                Browse recipes matched to the{" "}
                 <strong>{ingredientNames.length} items</strong> currently in
                 stock.
               </p>
@@ -255,7 +284,8 @@ export default function RecipesClient({
                     )}
                   {(!prefs?.maxBuyItems && prefs?.maxBuyItems !== 0) && (
                     <p className="text-sm text-gray-400">
-                      Try adjusting your dietary preferences or refreshing.
+                      The recipe library may be empty. Ask a pantry admin to
+                      import recipes from the admin panel.
                     </p>
                   )}
                 </div>
@@ -313,7 +343,11 @@ export default function RecipesClient({
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {popularRecipes.map((r) => (
-                  <PopularRecipeCard key={r.recipe_id} recipe={r} />
+                  <PopularRecipeCard
+                    key={r.recipe_id}
+                    recipe={r}
+                    sourceUrl={cacheMap.get(r.recipe_id)?.source_url ?? null}
+                  />
                 ))}
               </div>
             )}
@@ -391,8 +425,8 @@ function RecipeCard({
 
         {upcoming.length > 0 && (
           <div className="bg-blue-50 rounded-lg px-3 py-2 text-xs text-blue-800 space-y-0.5">
-            {upcoming.map((u) => (
-              <p key={u.name}>
+            {upcoming.map((u, i) => (
+              <p key={`${u.name}-${i}`}>
                 <strong>{u.name}</strong> available{" "}
                 {new Date(u.availableDate).toLocaleDateString("en-US", {
                   month: "short",
@@ -405,9 +439,9 @@ function RecipeCard({
 
         <div className="mt-auto pt-2 flex items-center justify-between">
           <a
-            href={`https://spoonacular.com/recipes/${recipe.title.toLowerCase().replace(/\s+/g, "-")}-${recipe.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={recipe.source_url ?? `/recipe/${recipe.id}`}
+            target={recipe.source_url ? "_blank" : "_self"}
+            rel={recipe.source_url ? "noopener noreferrer" : undefined}
             className="text-sm text-ucd-blue hover:underline"
           >
             View recipe →
@@ -496,9 +530,9 @@ function WeeklyTopCard({
 
         <div className="mt-auto pt-2">
           <a
-            href={`https://spoonacular.com/recipes/${pick.recipe_title.toLowerCase().replace(/\s+/g, "-")}-${pick.recipe_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={cached?.source_url ?? `/recipe/${pick.recipe_id}`}
+            target={cached?.source_url ? "_blank" : "_self"}
+            rel={cached?.source_url ? "noopener noreferrer" : undefined}
             className="text-sm text-ucd-blue hover:underline"
           >
             View recipe →
@@ -509,7 +543,27 @@ function WeeklyTopCard({
   );
 }
 
-function PopularRecipeCard({ recipe }: { recipe: PopularRecipe }) {
+/** Returns true if the recipe's per-meal nutrition exceeds any set goal limit. */
+function exceedsPerMealLimits(
+  nutrition: RecipeNutrition | undefined | null,
+  prefs: StudentPreferences
+): boolean {
+  if (!nutrition) return false;
+  const meals = prefs.mealsPerDay || 3;
+  if (prefs.calorieGoal && nutrition.calories > prefs.calorieGoal / meals) return true;
+  if (prefs.proteinGoal && nutrition.protein > prefs.proteinGoal / meals) return true;
+  if (prefs.carbGoal && nutrition.carbs > prefs.carbGoal / meals) return true;
+  if (prefs.fatGoal && nutrition.fat > prefs.fatGoal / meals) return true;
+  return false;
+}
+
+function PopularRecipeCard({
+  recipe,
+  sourceUrl,
+}: {
+  recipe: PopularRecipe;
+  sourceUrl: string | null;
+}) {
   return (
     <div className="card overflow-hidden flex flex-col">
       {recipe.recipe_image_url && (
@@ -533,9 +587,9 @@ function PopularRecipeCard({ recipe }: { recipe: PopularRecipe }) {
         </div>
         <div className="mt-auto pt-2">
           <a
-            href={`https://spoonacular.com/recipes/${recipe.recipe_title.toLowerCase().replace(/\s+/g, "-")}-${recipe.recipe_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={sourceUrl ?? `/recipe/${recipe.recipe_id}`}
+            target={sourceUrl ? "_blank" : "_self"}
+            rel={sourceUrl ? "noopener noreferrer" : undefined}
             className="text-sm text-ucd-blue hover:underline"
           >
             View recipe →

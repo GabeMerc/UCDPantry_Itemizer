@@ -6,185 +6,56 @@ import type {
   CachedRecipe,
   RecipeNutrition,
   CachedIngredient,
-  SpoonacularRecipeDetail,
-  MealType,
 } from "@/lib/types";
 
-const CACHE_MAX_AGE_DAYS = 7;
-const CACHE_HIT_THRESHOLD = 10;
-
-// Pantry staples that Spoonacular's ignorePantry already handles.
-// Sending them wastes URL space and can cause long-URL issues.
-const PANTRY_SKIP = new Set([
-  "salt", "black pepper", "granulated sugar", "brown sugar",
-  "all-purpose flour", "baking powder", "baking soda", "vanilla extract",
-  "cinnamon", "cumin", "paprika", "chili powder", "dried oregano",
-  "dried basil", "garlic powder", "onion powder", "red pepper flakes",
-  "cornstarch", "white vinegar", "apple cider vinegar",
-]);
+// Students always read from recipes_cache — no Spoonacular calls here.
+// Admins trigger Spoonacular fetches via /api/admin/fetch-recipes.
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const ingredients = searchParams.get("ingredients") ?? "";
-  const diet = searchParams.get("diet") ?? "";
-  const forceRefresh = searchParams.get("refresh") === "1";
   const maxBuyParam = searchParams.get("maxBuyItems");
   const maxBuyItems: number | null =
     maxBuyParam !== null ? parseInt(maxBuyParam, 10) : null;
 
   if (!ingredients) {
-    return NextResponse.json({ recipes: [] });
-  }
-
-  const apiKey = process.env.SPOONACULAR_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "Spoonacular API key not configured." },
-      { status: 500 }
-    );
+    return NextResponse.json({ recipes: [], source: "cache" });
   }
 
   const supabase = await createClient();
   const today = new Date().toISOString().split("T")[0];
-  const ingredientList = ingredients.split(",").map((s) => s.trim().toLowerCase());
+  const ingredientList = ingredients
+    .split(",")
+    .map((s) => s.trim().toLowerCase());
 
-  // Filter out common pantry staples for the Spoonacular query (keeps local matching intact)
-  const spoonacularIngredients = ingredientList.filter(
-    (name) => !PANTRY_SKIP.has(name.toLowerCase())
-  );
-
-  // ── Build shipment map for "arriving soon" annotations ─────────────────────
+  // Build shipment map for "arriving soon" annotations
   const shipmentMap = await buildShipmentMap(supabase, today);
 
-  // ── Step 1: Try cache (skip if force-refresh) ─────────────────────────────
-  const staleCutoff = new Date();
-  staleCutoff.setDate(staleCutoff.getDate() - CACHE_MAX_AGE_DAYS);
-
-  if (!forceRefresh) {
-    const { data: cached } = await supabase
-      .from("recipes_cache")
-      .select("*")
-      .overlaps("ingredient_names", ingredientList)
-      .gte("last_fetched_at", staleCutoff.toISOString());
-
-    if (cached && cached.length >= CACHE_HIT_THRESHOLD) {
-      // Serve from cache — compute used/missed counts dynamically
-      const enriched = buildEnrichedFromCache(
-        cached as CachedRecipe[],
-        ingredientList,
-        shipmentMap
-      );
-      const filtered = applyBudgetFilter(enriched, maxBuyItems, shipmentMap);
-      return NextResponse.json({ recipes: filtered, source: "cache" });
-    }
-  }
-
-  // ── Step 2: Call Spoonacular findByIngredients ────────────────────────────
-  const params = new URLSearchParams({
-    apiKey,
-    ingredients: spoonacularIngredients.join(","),
-    number: "24",
-    ranking: "2",
-    ignorePantry: "true",
-  });
-  if (diet) params.set("diet", diet);
-
-  const spoonRes = await fetch(
-    `https://api.spoonacular.com/recipes/findByIngredients?${params.toString()}`
-  );
-
-  if (!spoonRes.ok) {
-    const text = await spoonRes.text();
-    return NextResponse.json(
-      { error: `Spoonacular error: ${text}` },
-      { status: 502 }
-    );
-  }
-
-  const raw: EnrichedRecipe[] = await spoonRes.json();
-
-  // ── Step 3: Fetch full details for recipes not in cache (or stale) ────────
-  const recipeIds = raw.map((r) => r.id);
-
-  // Find which IDs are already fresh in cache
-  const { data: existingCached } = await supabase
-    .from("recipes_cache")
-    .select("spoonacular_id")
-    .in("spoonacular_id", recipeIds)
-    .gte("last_fetched_at", staleCutoff.toISOString());
-
-  const freshIds = new Set((existingCached ?? []).map((r: { spoonacular_id: number }) => r.spoonacular_id));
-  const idsToFetch = recipeIds.filter((id) => !freshIds.has(id));
-
-  if (idsToFetch.length > 0) {
-    // Fetch full details + nutrition from Spoonacular informationBulk
-    try {
-      const detailParams = new URLSearchParams({
-        apiKey,
-        ids: idsToFetch.join(","),
-        includeNutrition: "true",
-      });
-
-      const detailRes = await fetch(
-        `https://api.spoonacular.com/recipes/informationBulk?${detailParams.toString()}`
-      );
-
-      if (detailRes.ok) {
-        const details: SpoonacularRecipeDetail[] = await detailRes.json();
-        await upsertToCache(supabase, details);
-      }
-    } catch {
-      // Non-critical — we still have the findByIngredients results
-    }
-  }
-
-  // ── Step 4: Read back all cache entries for these recipes ─────────────────
-  const { data: fullCached } = await supabase
+  // Read all matching recipes from cache (GIN overlap on ingredient_names)
+  const { data: cached, error } = await supabase
     .from("recipes_cache")
     .select("*")
-    .in("spoonacular_id", recipeIds);
+    .overlaps("ingredient_names", ingredientList);
 
-  const cacheMap = new Map<number, CachedRecipe>();
-  for (const c of (fullCached ?? []) as CachedRecipe[]) {
-    cacheMap.set(c.spoonacular_id, c);
+  if (error) {
+    return NextResponse.json(
+      { error: "Failed to query recipe library." },
+      { status: 500 }
+    );
   }
 
-  // ── Step 5: Enrich results with cache data + shipment info ────────────────
-  const enriched: EnrichedRecipe[] = raw.map((recipe) => {
-    const upcomingIngredients = computeUpcomingIngredients(
-      recipe.missedIngredients ?? [],
-      shipmentMap
-    );
-
-    const cached = cacheMap.get(recipe.id);
-    return {
-      ...recipe,
-      upcomingIngredients,
-      ...(cached
-        ? {
-            nutrition: cached.nutrition as RecipeNutrition | undefined,
-            cuisines: cached.cuisines,
-            dietary_tags: cached.dietary_tags,
-            ready_in_minutes: cached.ready_in_minutes,
-            source_url: cached.source_url,
-            instructions: cached.instructions,
-            meal_type: cached.meal_type,
-          }
-        : {}),
-    };
-  });
+  const enriched = buildEnrichedFromCache(
+    (cached ?? []) as CachedRecipe[],
+    ingredientList,
+    shipmentMap
+  );
 
   const filtered = applyBudgetFilter(enriched, maxBuyItems, shipmentMap);
-  return NextResponse.json({ recipes: filtered, source: "api" });
+  return NextResponse.json({ recipes: filtered, source: "cache" });
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Hard-filter recipes by maxBuyItems budget.
- * A recipe's "buy count" = missed ingredients that are NOT arriving soon.
- * If maxBuyItems is 0, only recipes with 0 non-pantry ingredients pass.
- */
 function applyBudgetFilter(
   recipes: EnrichedRecipe[],
   maxBuyItems: number | null,
@@ -195,34 +66,14 @@ function applyBudgetFilter(
   return recipes.filter((recipe) => {
     const missed = recipe.missedIngredients ?? [];
     const upcoming = recipe.upcomingIngredients ?? [];
-    const upcomingNames = new Set(
-      upcoming.map((u) => u.name.toLowerCase())
-    );
+    const upcomingNames = new Set(upcoming.map((u) => u.name.toLowerCase()));
 
-    // Count missed ingredients that are NOT arriving soon
     const buyCount = missed.filter(
       (ing) => !upcomingNames.has(ing.name.toLowerCase())
     ).length;
 
     return buyCount <= maxBuyItems;
   });
-}
-
-function classifyMealType(dishTypes: string[]): MealType {
-  const types = (dishTypes ?? []).map((t) => t.toLowerCase());
-  if (types.some((t) => ["breakfast", "morning meal", "brunch"].includes(t)))
-    return "breakfast";
-  if (
-    types.some((t) =>
-      ["lunch", "soup", "salad", "sandwich", "snack"].includes(t)
-    )
-  )
-    return "lunch";
-  if (
-    types.some((t) => ["dinner", "main course", "main dish"].includes(t))
-  )
-    return "dinner";
-  return "unknown";
 }
 
 async function buildShipmentMap(
@@ -337,63 +188,5 @@ function buildEnrichedFromCache(
         meal_type: c.meal_type,
       } as EnrichedRecipe;
     })
-    .sort((a, b) => b.usedIngredientCount - a.usedIngredientCount)
-    .slice(0, 24);
-}
-
-async function upsertToCache(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  details: SpoonacularRecipeDetail[]
-) {
-  for (const d of details) {
-    const ingredientNames = (d.extendedIngredients ?? []).map((i) =>
-      i.name.toLowerCase()
-    );
-
-    const ingredients: CachedIngredient[] = (d.extendedIngredients ?? []).map(
-      (i) => ({
-        id: i.id,
-        name: i.name,
-        amount: i.amount,
-        unit: i.unit,
-        original: i.original,
-      })
-    );
-
-    let nutrition: RecipeNutrition | null = null;
-    if (d.nutrition?.nutrients) {
-      const findNutrient = (name: string) =>
-        d.nutrition!.nutrients.find(
-          (n) => n.name.toLowerCase() === name.toLowerCase()
-        )?.amount ?? 0;
-
-      nutrition = {
-        calories: findNutrient("Calories"),
-        protein: findNutrient("Protein"),
-        carbs: findNutrient("Carbohydrates"),
-        fat: findNutrient("Fat"),
-      };
-    }
-
-    const mealType = classifyMealType(d.dishTypes ?? []);
-
-    await supabase.from("recipes_cache").upsert(
-      {
-        spoonacular_id: d.id,
-        title: d.title,
-        image_url: d.image,
-        ingredient_names: ingredientNames,
-        ingredients: ingredients as unknown as Record<string, unknown>,
-        instructions: d.instructions,
-        nutrition: nutrition as unknown as Record<string, unknown>,
-        dietary_tags: d.diets ?? [],
-        cuisines: d.cuisines ?? [],
-        ready_in_minutes: d.readyInMinutes,
-        source_url: d.sourceUrl,
-        meal_type: mealType,
-        last_fetched_at: new Date().toISOString(),
-      },
-      { onConflict: "spoonacular_id" }
-    );
-  }
+    .sort((a, b) => b.usedIngredientCount - a.usedIngredientCount);
 }

@@ -10,6 +10,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing fields." }, { status: 400 });
   }
 
+  if (typeof recipe_id !== "number" || !Number.isInteger(recipe_id) || recipe_id <= 0) {
+    return NextResponse.json({ error: "recipe_id must be a positive integer." }, { status: 400 });
+  }
+
+  if (typeof recipe_title !== "string" || recipe_title.length > 500) {
+    return NextResponse.json({ error: "recipe_title must be a string under 500 characters." }, { status: 400 });
+  }
+
   if (!["view", "like"].includes(interaction_type)) {
     return NextResponse.json(
       { error: "interaction_type must be 'view' or 'like'." },

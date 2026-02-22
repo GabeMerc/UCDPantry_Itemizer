@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -8,7 +9,8 @@ const navLinks = [
   { href: "/admin/dashboard", label: "Dashboard" },
   { href: "/admin/inventory", label: "Inventory" },
   { href: "/admin/shipments", label: "Shipments" },
-  { href: "/admin/import", label: "Import CSV" },
+  { href: "/admin/recipes",   label: "Recipes" },
+  { href: "/admin/settings",  label: "Settings" },
 ];
 
 export default function AdminNav() {
@@ -22,24 +24,34 @@ export default function AdminNav() {
   }
 
   return (
-    <header className="bg-ucd-blue text-white shadow-md">
+    <header className="bg-pantry-dark text-white shadow-md">
       <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-16">
-        <div className="flex items-center gap-8">
-          <span className="font-bold text-lg tracking-tight">
-            UC Davis Pantry
-            <span className="ml-2 text-xs bg-ucd-gold text-ucd-blue px-2 py-0.5 rounded font-semibold uppercase">
-              Admin
+        <div className="flex items-center gap-6">
+          <Link href="/admin/dashboard" className="flex items-center gap-2.5 shrink-0">
+            <Image
+              src="/logos/pantry-icon-white.webp"
+              alt="The Pantry"
+              width={32}
+              height={32}
+              className="rounded-full"
+            />
+            <span className="hidden sm:block">
+              <span className="font-semibold text-white text-sm">The Pantry</span>
+              <span className="ml-1.5 text-[10px] bg-pantry-gold text-pantry-dark px-1.5 py-0.5 rounded font-bold uppercase">
+                Admin
+              </span>
             </span>
-          </span>
-          <nav className="flex gap-1">
+          </Link>
+
+          <nav className="flex gap-0.5">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   pathname === link.href
-                    ? "bg-white/20 text-white"
-                    : "text-blue-200 hover:text-white hover:bg-white/10"
+                    ? "bg-white/15 text-white"
+                    : "text-white/60 hover:text-white hover:bg-white/10"
                 }`}
               >
                 {link.label}
@@ -47,17 +59,18 @@ export default function AdminNav() {
             ))}
           </nav>
         </div>
+
         <div className="flex items-center gap-4">
           <Link
             href="/browse"
-            className="text-blue-200 hover:text-white text-sm transition-colors"
+            className="text-white/60 hover:text-white text-sm transition-colors"
             target="_blank"
           >
-            View Student Side ↗
+            Student view ↗
           </Link>
           <button
             onClick={handleSignOut}
-            className="text-sm text-blue-200 hover:text-white transition-colors"
+            className="text-sm text-white/60 hover:text-white transition-colors"
           >
             Sign out
           </button>

@@ -26,7 +26,10 @@
       "Bash(cmd.exe /c \"where npm\")",
       "Bash(npx tsc:*)",
       "Bash(export PATH=\"/c/Program Files/nodejs:/mingw64/usr/bin:/usr/bin:$PATH\")",
-      "Bash(node scripts/seed.mjs:*)"
+      "Bash(node scripts/seed.mjs:*)",
+      "Bash(cd:*)",
+      "Bash(cd /c/Users/Administrator/UCDPantry_Itemizer && ./node_modules/.bin/tsc --noEmit 2>&1)",
+      "Bash(echo EXIT: $?:*)"
     ]
   }
 }

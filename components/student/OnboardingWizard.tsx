@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { DietaryTag, StudentPreferences } from "@/lib/types";
+import type { DietaryTag, MealType, StudentPreferences } from "@/lib/types";
 
 const ALL_TAGS: DietaryTag[] = [
   "vegan",
@@ -61,7 +61,15 @@ const DEFAULT_PREFS: StudentPreferences = {
   mealsPerDay: 3,
   dislikedIngredients: [],
   maxBuyItems: null,
+  swipesPerMeal: 10,
 };
+
+const SWIPE_OPTIONS: { value: number; label: string; desc: string }[] = [
+  { value: 5,  label: "5 cards",  desc: "Quick" },
+  { value: 10, label: "10 cards", desc: "Balanced" },
+  { value: 15, label: "15 cards", desc: "Thorough" },
+  { value: 20, label: "20 cards", desc: "Full" },
+];
 
 export default function OnboardingWizard() {
   const router = useRouter();
@@ -373,7 +381,16 @@ export default function OnboardingWizard() {
               {[1, 2, 3].map((n) => (
                 <button
                   key={n}
-                  onClick={() => setPrefs((p) => ({ ...p, mealsPerDay: n }))}
+                  onClick={() =>
+                    setPrefs((p) => {
+                      const defaults: Record<number, MealType[]> = {
+                        1: ["dinner"],
+                        2: ["lunch", "dinner"],
+                        3: ["breakfast", "lunch", "dinner"],
+                      };
+                      return { ...p, mealsPerDay: n, selectedMealTypes: defaults[n] };
+                    })
+                  }
                   className={`flex-1 py-3 rounded-lg text-sm font-bold border-2 transition-all ${
                     prefs.mealsPerDay === n
                       ? "bg-ucd-blue text-white border-ucd-blue"
@@ -381,6 +398,76 @@ export default function OnboardingWizard() {
                   }`}
                 >
                   {n} {n === 1 ? "meal" : "meals"}
+                </button>
+              ))}
+            </div>
+
+            {/* Meal type selector — shown when < 3 meals */}
+            {prefs.mealsPerDay < 3 && (
+              <div className="mt-3">
+                <p className="text-xs text-gray-500 mb-2">
+                  Which meal{prefs.mealsPerDay > 1 ? "s" : ""}?
+                </p>
+                <div className="flex gap-2">
+                  {(["breakfast", "lunch", "dinner"] as MealType[]).map((mt) => {
+                    const selected = (prefs.selectedMealTypes ?? []).includes(mt);
+                    return (
+                      <button
+                        key={mt}
+                        onClick={() =>
+                          setPrefs((p) => {
+                            const current = p.selectedMealTypes ?? [];
+                            if (selected) {
+                              if (current.length <= p.mealsPerDay) return p;
+                              return { ...p, selectedMealTypes: current.filter((t) => t !== mt) };
+                            } else {
+                              if (p.mealsPerDay === 1) {
+                                return { ...p, selectedMealTypes: [mt] };
+                              } else {
+                                const updated = [...current.filter((t) => t !== mt), mt];
+                                return { ...p, selectedMealTypes: updated.slice(-p.mealsPerDay) };
+                              }
+                            }
+                          })
+                        }
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition-all capitalize ${
+                          selected
+                            ? "bg-ucd-blue text-white border-ucd-blue scale-105"
+                            : "bg-white text-gray-600 border-gray-200 hover:border-ucd-blue"
+                        }`}
+                      >
+                        {selected ? "✓ " : ""}
+                        {mt}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Recipes per swipe session
+            </label>
+            <p className="text-xs text-gray-400 mb-2">
+              How many recipe cards to show per meal type when swiping for the week.
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {SWIPE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setPrefs((p) => ({ ...p, swipesPerMeal: opt.value }))}
+                  className={`py-2.5 rounded-lg text-sm font-bold border-2 transition-all flex flex-col items-center gap-0.5 ${
+                    (prefs.swipesPerMeal ?? 10) === opt.value
+                      ? "bg-ucd-blue text-white border-ucd-blue scale-105"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-ucd-blue"
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  <span className={`text-xs font-normal ${(prefs.swipesPerMeal ?? 10) === opt.value ? "text-blue-200" : "text-gray-400"}`}>
+                    {opt.desc}
+                  </span>
                 </button>
               ))}
             </div>
