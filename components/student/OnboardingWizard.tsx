@@ -201,7 +201,7 @@ export default function OnboardingWizard() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Calories (kcal/day)
+                Calories (cal/day)
               </label>
               <input
                 type="number"

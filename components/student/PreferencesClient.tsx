@@ -167,7 +167,7 @@ export default function PreferencesClient() {
         <h2 className="font-semibold text-gray-800">Daily Goals</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label">Calories (kcal/day)</label>
+            <label className="label">Calories (cal/day)</label>
             <input
               type="number"
               min={0}
