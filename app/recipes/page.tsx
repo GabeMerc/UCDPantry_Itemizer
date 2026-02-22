@@ -59,12 +59,25 @@ export default async function RecipesPage() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 3);
 
+  // Deduplicate popular recipes by recipe_id (the view can produce duplicates
+  // when the same recipe was logged with different image URLs at different times)
+  const popularDeduped = new Map<number, PopularRecipe>();
+  for (const r of (popularRes.data ?? []) as PopularRecipe[]) {
+    const existing = popularDeduped.get(r.recipe_id);
+    if (!existing || r.total_interactions > existing.total_interactions) {
+      popularDeduped.set(r.recipe_id, r);
+    }
+  }
+  const popularRecipes = [...popularDeduped.values()].sort(
+    (a, b) => b.total_interactions - a.total_interactions
+  );
+
   // Fetch cache data for all popular recipes (images, nutrition, cuisines)
   const topPickIds = weeklyTopPicks.map((p) => p.recipe_id);
   const allPopularIds = [
     ...new Set([
       ...topPickIds,
-      ...(popularRes.data ?? []).map((r: { recipe_id: number }) => r.recipe_id),
+      ...popularRecipes.map((r) => r.recipe_id),
     ]),
   ];
   let cachedDetails: CachedRecipe[] = [];
@@ -79,7 +92,7 @@ export default async function RecipesPage() {
   return (
     <RecipesClient
       ingredientNames={ingredientNames}
-      popularRecipes={(popularRes.data ?? []) as PopularRecipe[]}
+      popularRecipes={popularRecipes}
       weeklyTopPicks={weeklyTopPicks}
       cachedRecipes={cachedDetails}
     />
