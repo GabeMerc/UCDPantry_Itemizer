@@ -249,9 +249,6 @@ export default function PreferencesClient() {
       <div className="card p-6 space-y-4">
         <div>
           <h2 className="font-semibold text-gray-800">Cuisine Preferences</h2>
-          <p className="text-sm text-gray-500">
-            Matching recipes get a score boost.
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {CUISINE_OPTIONS.map((c) => (
