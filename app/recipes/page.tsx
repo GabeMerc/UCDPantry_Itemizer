@@ -59,14 +59,20 @@ export default async function RecipesPage() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 3);
 
-  // Fetch cache data for weekly top picks to show nutrition/cuisines
+  // Fetch cache data for all popular recipes (images, nutrition, cuisines)
   const topPickIds = weeklyTopPicks.map((p) => p.recipe_id);
+  const allPopularIds = [
+    ...new Set([
+      ...topPickIds,
+      ...(popularRes.data ?? []).map((r: { recipe_id: number }) => r.recipe_id),
+    ]),
+  ];
   let cachedDetails: CachedRecipe[] = [];
-  if (topPickIds.length > 0) {
+  if (allPopularIds.length > 0) {
     const { data } = await supabase
       .from("recipes_cache")
       .select("*")
-      .in("spoonacular_id", topPickIds);
+      .in("spoonacular_id", allPopularIds);
     cachedDetails = (data ?? []) as CachedRecipe[];
   }
 

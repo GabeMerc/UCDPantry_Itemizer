@@ -346,7 +346,7 @@ export default function RecipesClient({
                   <PopularRecipeCard
                     key={r.recipe_id}
                     recipe={r}
-                    sourceUrl={cacheMap.get(r.recipe_id)?.source_url ?? null}
+                    cached={cacheMap.get(r.recipe_id)}
                   />
                 ))}
               </div>
@@ -472,12 +472,14 @@ function WeeklyTopCard({
 }) {
   const medals = ["🥇", "🥈", "🥉"];
 
+  const imageUrl = cached?.image_url || pick.recipe_image_url;
+
   return (
     <div className="card overflow-hidden flex flex-col border-2 border-ucd-gold/30">
-      {pick.recipe_image_url && (
+      {imageUrl && (
         <div className="relative h-44 bg-gray-100">
           <Image
-            src={pick.recipe_image_url}
+            src={imageUrl}
             alt={pick.recipe_title}
             fill
             className="object-cover"
@@ -559,17 +561,20 @@ function exceedsPerMealLimits(
 
 function PopularRecipeCard({
   recipe,
-  sourceUrl,
+  cached,
 }: {
   recipe: PopularRecipe;
-  sourceUrl: string | null;
+  cached?: CachedRecipe;
 }) {
+  const imageUrl = cached?.image_url || recipe.recipe_image_url;
+  const sourceUrl = cached?.source_url ?? null;
+
   return (
     <div className="card overflow-hidden flex flex-col">
-      {recipe.recipe_image_url && (
+      {imageUrl && (
         <div className="relative h-44 bg-gray-100">
           <Image
-            src={recipe.recipe_image_url}
+            src={imageUrl}
             alt={recipe.recipe_title}
             fill
             className="object-cover"
